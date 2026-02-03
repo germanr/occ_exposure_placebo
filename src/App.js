@@ -1071,7 +1071,8 @@ function AlphabeticalVisualization() {
             )}
 
             {/* Displays the third page - Sample occupations from different parts of the alphabet */}
-            {showTop && (
+            {/* TEMPORARILY DISABLED - to re-enable, remove "false &&" below and in navigation buttons */}
+            {false && showTop && (
                 <>
                     <div style={{
                         backgroundColor: 'white',
@@ -1423,7 +1424,7 @@ function AlphabeticalVisualization() {
             {ranked && (
                 <div style={{ paddingBottom: '20px' }}>
                     <button
-                        onClick={() => handleNext(1, true)}
+                        onClick={() => handleNext(1, false)}
                         style={{
                             cursor: 'pointer',
                             float: 'right',
@@ -1436,7 +1437,8 @@ function AlphabeticalVisualization() {
             )}
 
             {/* Displays back and next buttons */}
-            {showTop && (
+            {/* TEMPORARILY DISABLED */}
+            {false && showTop && (
                 <div style={{ paddingBottom: '20px' }}>
                     <div>
                         <button
@@ -1468,7 +1470,7 @@ function AlphabeticalVisualization() {
                 <div style={{ paddingBottom: '20px' }}>
                     <div>
                         <button
-                            onClick={() => handleBack(3, true, false)}
+                            onClick={() => handleBack(3, false, true)}
                             style={{
                                 cursor: 'pointer',
                                 float: 'left'

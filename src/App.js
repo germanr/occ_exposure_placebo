@@ -1414,7 +1414,7 @@ function AlphabeticalVisualization() {
                             borderRadius: '8px',
                             boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
                         }}>
-                            <p>Thank you for completing this portion of the survey. Please click Next at the bottom right of the page to continue the survey.</p>
+                            <p>Thank you for completing this portion of the survey. Please click &gt; at the bottom right of the page to continue the survey. You may need to scroll all the way to the bottom of the survey screen to see it.</p>
                         </div>
                     </div>
                 </>

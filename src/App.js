@@ -371,6 +371,8 @@ function AlphabeticalVisualization() {
     const [showSearch, setShowSearch] = useState(true);
     // Used to determine whether to display the third page
     const [showTop, setShowTop] = useState(false);
+    // Used to determine whether to display the transition screen before page 4
+    const [showTransition, setShowTransition] = useState(false);
     // Used to determine whether to display the final page
     const [showEnd, setShowEnd] = useState(false);
     // Used to track the time spent on the current page
@@ -654,6 +656,16 @@ function AlphabeticalVisualization() {
         setSelectedItemEnd(null);
         updateTimeSpentPages(page_num, timeSpent);
         setTimeSpent(0);
+        // Show transition screen before page 4
+        if (!show_top) {
+            setShowTransition(true);
+        }
+    };
+
+    // Handles user clicking continue on the transition screen
+    const handleTransitionContinue = () => {
+        setShowTransition(false);
+        setSearchScreenTimeStart(Date.now());
     };
 
     // Handles user clicking back button
@@ -1273,8 +1285,44 @@ function AlphabeticalVisualization() {
                 </>
             )}
 
+            {/* Transition screen before page 4 */}
+            {showTransition && !showSearch && !ranked && !showTop && !showEnd && (
+                <div style={{
+                    backgroundColor: 'white',
+                    padding: '30px',
+                    borderRadius: '8px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                    marginBottom: '30px',
+                    textAlign: 'center'
+                }}>
+                    <p style={{
+                        fontSize: '1.1rem',
+                        lineHeight: '1.6',
+                        color: '#334155',
+                        marginBottom: '24px'
+                    }}>
+                        Next, you will be able to explore and learn more about any occupation you are interested in. This can include occupations that are not among the top 6 you previously listed.
+                    </p>
+                    <button
+                        onClick={handleTransitionContinue}
+                        style={{
+                            cursor: 'pointer',
+                            padding: '10px 24px',
+                            fontSize: '1rem',
+                            fontWeight: '600',
+                            backgroundColor: '#2563eb',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px'
+                        }}
+                    >
+                        Continue
+                    </button>
+                </div>
+            )}
+
             {/* Displays the fourth page */}
-            {!showTop && !ranked && !showSearch && !showEnd && (
+            {!showTransition && !showTop && !ranked && !showSearch && !showEnd && (
                 <>
                     <div style={{
                         display: 'grid',
@@ -1466,7 +1514,7 @@ function AlphabeticalVisualization() {
             )}
 
             {/* Displays back and end buttons */}
-            {!showTop && !ranked && !showSearch && !showEnd && (
+            {!showTransition && !showTop && !ranked && !showSearch && !showEnd && (
                 <div style={{ paddingBottom: '20px' }}>
                     <div>
                         <button

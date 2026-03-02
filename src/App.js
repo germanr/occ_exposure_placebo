@@ -389,8 +389,32 @@ function AlphabeticalVisualization() {
     const [searchScreenTimeStart, setSearchScreenTimeStart] = useState(null);
     const [searchScreenTotalTime, setSearchScreenTotalTime] = useState(0);
 
+    // Alphabetical tier filter buttons for page 4
+    const [alphaFilters, setAlphaFilters] = useState(new Set());
+    // Occupation group filter (2-digit SOC)
+    const [occGroupFilter, setOccGroupFilter] = useState('');
+    // Education filter: 'college' (bachelor's+) or 'nocollege'
+    const [educationFilter, setEducationFilter] = useState('');
+    // Field of study filter
+    const [fieldOfStudyFilter, setFieldOfStudyFilter] = useState('');
+
     // Get correct listing of elements. Ex. X, Y, and Z
     const listFormatter = new Intl.ListFormat('en-US', { style: 'long', type: 'conjunction' });
+
+    // 2-digit SOC code to group name mapping
+    const socGroupMap = {};
+    mockData.occupations.forEach(o => { socGroupMap[String(o.two_digit_soc_code)] = o.name; });
+
+    // Unique degree fields derived from CSV data
+    const allDegreeFields = React.useMemo(() => {
+        const fieldSet = new Set();
+        occupationList.forEach(occ => {
+            [occ.degfield_1, occ.degfield_2, occ.degfield_3].forEach(f => {
+                if (f && f.trim()) fieldSet.add(f.trim().toLowerCase());
+            });
+        });
+        return [...fieldSet].sort().map(f => capitalizeField(f));
+    }, [occupationList]);
 
     // Fetch CSV data on component mount
     useEffect(() => {
@@ -549,6 +573,19 @@ function AlphabeticalVisualization() {
         return () => window.removeEventListener('message', handleMessage);
     }, [searchScreenTotalTime, searchScreenOccupationsViewed, searchTerms]);
 
+    // Filter toggle handler for page 4
+    const handleFilterToggle = (label) => {
+        setAlphaFilters(prev => {
+            const next = new Set(prev);
+            if (next.has(label)) {
+                next.delete(label);
+            } else {
+                next.add(label);
+            }
+            return next;
+        });
+    };
+
     // Filter and sort data
     // Use occupations from CSV file
     let data = [...occupationList];
@@ -556,6 +593,39 @@ function AlphabeticalVisualization() {
     // Apply search filter
     if (searchTerm) {
         data = data.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    }
+
+    // Apply filters (only active on page 4: !showSearch && !ranked && !showTop)
+    if (!showSearch && !ranked && !showTop) {
+        if (alphaFilters.size > 0) {
+            data = data.filter(item => {
+                const tierIdx = getAlphaTierIndex(item.name);
+                const tierLabel = ALPHA_TIERS[tierIdx].label;
+                return alphaFilters.has(tierLabel);
+            });
+        }
+        if (occGroupFilter) {
+            data = data.filter(item => item.soc_code && item.soc_code.startsWith(occGroupFilter + '-'));
+        }
+        if (educationFilter === 'college') {
+            data = data.filter(item => {
+                const edu = (item.educationcode || '').toLowerCase();
+                return edu.includes('bachelor') || edu.includes('master') || edu.includes('doctoral') || edu.includes('professional');
+            });
+        } else if (educationFilter === 'nocollege') {
+            data = data.filter(item => {
+                const edu = (item.educationcode || '').toLowerCase();
+                return !(edu.includes('bachelor') || edu.includes('master') || edu.includes('doctoral') || edu.includes('professional'));
+            });
+        }
+        if (fieldOfStudyFilter) {
+            const filterLower = fieldOfStudyFilter.toLowerCase();
+            data = data.filter(item =>
+                [item.degfield_1, item.degfield_2, item.degfield_3].some(f =>
+                    f && f.trim().toLowerCase() === filterLower
+                )
+            );
+        }
     }
 
     // Handles item selection
@@ -666,6 +736,10 @@ function AlphabeticalVisualization() {
     const handleTransitionContinue = () => {
         setShowTransition(false);
         setSearchScreenTimeStart(Date.now());
+        setAlphaFilters(new Set());
+        setOccGroupFilter('');
+        setEducationFilter('');
+        setFieldOfStudyFilter('');
     };
 
     // Handles user clicking back button
@@ -1359,6 +1433,120 @@ function AlphabeticalVisualization() {
                         }}>
                             Please click on an occupation to view more information about it.
                         </label>
+
+                        {/* Alphabetical tier filter buttons */}
+                        <div style={{
+                            display: 'flex',
+                            gap: '8px',
+                            marginBottom: '10px',
+                            flexWrap: 'wrap'
+                        }}>
+                            {ALPHA_TIERS.map(({ label, displayLabel, color }) => {
+                                const isActive = alphaFilters.has(label);
+                                return (
+                                    <button
+                                        key={label}
+                                        onClick={() => handleFilterToggle(label)}
+                                        style={{
+                                            padding: '5px 12px',
+                                            borderRadius: '16px',
+                                            border: `2px solid ${color}`,
+                                            backgroundColor: isActive ? color : 'white',
+                                            color: isActive ? 'white' : color,
+                                            fontWeight: '600',
+                                            fontSize: '12px',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s ease'
+                                        }}
+                                    >
+                                        {displayLabel}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Additional filters row */}
+                        <div style={{
+                            display: 'flex',
+                            gap: '12px',
+                            marginBottom: '10px',
+                            flexWrap: 'wrap',
+                            alignItems: 'center'
+                        }}>
+                            {/* Field of study dropdown */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <label style={{ fontSize: '12px', fontWeight: '600', color: '#334155' }}>
+                                    Field of study:
+                                </label>
+                                <select
+                                    value={fieldOfStudyFilter}
+                                    onChange={(e) => setFieldOfStudyFilter(e.target.value)}
+                                    style={{
+                                        padding: '4px 8px',
+                                        borderRadius: '6px',
+                                        border: '1px solid #d1d5db',
+                                        fontSize: '12px',
+                                        color: '#334155',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <option value="">All fields</option>
+                                    {allDegreeFields.map(f => (
+                                        <option key={f} value={f.toLowerCase()}>{f}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Education filter */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <label style={{ fontSize: '12px', fontWeight: '600', color: '#334155' }}>
+                                    Typical education:
+                                </label>
+                                <select
+                                    value={educationFilter}
+                                    onChange={(e) => setEducationFilter(e.target.value)}
+                                    style={{
+                                        padding: '4px 8px',
+                                        borderRadius: '6px',
+                                        border: '1px solid #d1d5db',
+                                        fontSize: '12px',
+                                        color: '#334155',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <option value="">All education levels</option>
+                                    <option value="college">College degree (bachelor's or higher)</option>
+                                    <option value="nocollege">Less than a bachelor's degree</option>
+                                </select>
+                            </div>
+
+                            {/* Occupation group dropdown */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <label style={{ fontSize: '12px', fontWeight: '600', color: '#334155' }}>
+                                    Occupation group:
+                                </label>
+                                <select
+                                    value={occGroupFilter}
+                                    onChange={(e) => setOccGroupFilter(e.target.value)}
+                                    style={{
+                                        padding: '4px 8px',
+                                        borderRadius: '6px',
+                                        border: '1px solid #d1d5db',
+                                        fontSize: '12px',
+                                        color: '#334155',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <option value="">All groups</option>
+                                    {mockData.occupations.map(o => (
+                                        <option key={o.two_digit_soc_code} value={String(o.two_digit_soc_code)}>
+                                            {o.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
                         <div style={{ position: 'relative' }}>
                             <input
                                 type="text"

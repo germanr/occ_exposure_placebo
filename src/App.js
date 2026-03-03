@@ -41,21 +41,19 @@ const mockData = {
 
 // Alphabetical tier definitions - blue color scheme
 const ALPHA_TIERS = [
-    { label: 'A-E', displayLabel: 'A-E', range: ['A', 'E'], color: '#1e40af' },    // Dark Blue
-    { label: 'F-J', displayLabel: 'F-J', range: ['F', 'J'], color: '#2563eb' },     // Blue
-    { label: 'K-O', displayLabel: 'K-O', range: ['K', 'O'], color: '#3b82f6' },     // Medium Blue
-    { label: 'P-T', displayLabel: 'P-T', range: ['P', 'T'], color: '#60a5fa' },     // Light Blue
-    { label: 'U-Z', displayLabel: 'U-Z', range: ['U', 'Z'], color: '#93c5fd' },     // Lighter Blue
+    { label: 'A-F', displayLabel: 'A-F', range: ['A', 'F'], color: '#1e40af' },    // Dark Blue
+    { label: 'G-M', displayLabel: 'G-M', range: ['G', 'M'], color: '#2563eb' },     // Blue
+    { label: 'N-S', displayLabel: 'N-S', range: ['N', 'S'], color: '#3b82f6' },     // Medium Blue
+    { label: 'T-Z', displayLabel: 'T-Z', range: ['T', 'Z'], color: '#60a5fa' },     // Light Blue
 ];
 
 // Get alphabetical tier index (0-4) from occupation name
 function getAlphaTierIndex(name) {
     const firstLetter = name.charAt(0).toUpperCase();
-    if (firstLetter <= 'E') return 0;
-    if (firstLetter <= 'J') return 1;
-    if (firstLetter <= 'O') return 2;
-    if (firstLetter <= 'T') return 3;
-    return 4;
+    if (firstLetter <= 'F') return 0;
+    if (firstLetter <= 'M') return 1;
+    if (firstLetter <= 'S') return 2;
+    return 3;
 }
 
 // Get alphabetical group info for an occupation
@@ -67,7 +65,7 @@ function getAlphabeticalGroup(name) {
 // Get button background color based on alphabetical tier (blue shades)
 function getButtonColor(name) {
     const idx = getAlphaTierIndex(name);
-    const colors = ['#dbeafe', '#dbeafe', '#e0e7ff', '#e0f2fe', '#eff6ff'];
+    const colors = ['#dbeafe', '#dbeafe', '#e0e7ff', '#e0f2fe'];
     return colors[idx];
 }
 

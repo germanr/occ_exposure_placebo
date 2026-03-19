@@ -1627,6 +1627,66 @@ function AlphabeticalVisualization() {
                                         </p>
                                     );
                                 })()}
+
+                                {(() => {
+                                    const relatedOccs = [selectedItemEnd.related_soc_code_1, selectedItemEnd.related_soc_code_2, selectedItemEnd.related_soc_code_3]
+                                        .filter(Boolean)
+                                        .map(code => socCodeMap[code])
+                                        .filter(Boolean);
+                                    return relatedOccs.length > 0 ? (
+                                        <>
+                                            <p style={{ lineHeight: '1.5', color: 'black', marginTop: '15px' }}>
+                                                <strong>Occupations similar to {selectedItemEnd.name} are shown below.</strong>
+                                            </p>
+                                            <ol style={{ paddingLeft: '20px', marginBottom: '15px', lineHeight: '1.8', color: 'black' }}>
+                                                {relatedOccs.map(occ => {
+                                                    const similarGroup = getAlphabeticalGroup(occ.name);
+                                                    return (
+                                                        <li key={occ.soc_code}>
+                                                            <strong>{occ.name}</strong>:{' '}
+                                                            <span style={{ color: similarGroup.color, fontWeight: '600' }}>
+                                                                {similarGroup.group}
+                                                            </span>
+                                                        </li>
+                                                    );
+                                                })}
+                                            </ol>
+                                        </>
+                                    ) : null;
+                                })()}
+
+                                {(() => {
+                                    const relatedOccs = [selectedItemEnd.related_soc_code_1, selectedItemEnd.related_soc_code_2, selectedItemEnd.related_soc_code_3]
+                                        .filter(Boolean)
+                                        .map(code => socCodeMap[code])
+                                        .filter(Boolean);
+                                    const allOccs = [selectedItemEnd, ...relatedOccs];
+                                    return (
+                                        <>
+                                            <p style={{ lineHeight: '1.5', color: 'black', marginTop: '15px' }}>
+                                                <strong>Relevant areas of study</strong>
+                                            </p>
+                                            <ul style={{ paddingLeft: '20px', marginBottom: '10px', lineHeight: '1.8', color: 'black' }}>
+                                                {allOccs.map(occ => {
+                                                    const edu = formatEducation(occ.educationcode);
+                                                    const degFields = [occ.degfield_1, occ.degfield_2, occ.degfield_3]
+                                                        .filter(Boolean)
+                                                        .map(capitalizeField);
+                                                    return (
+                                                        <li key={occ.soc_code || occ.name}>
+                                                            {occ.name}: {edu.hasBachelors
+                                                                ? 'The majority of workers in this occupation hold at least a college (bachelor\'s) degree.'
+                                                                : 'The majority of workers in this occupation have less than a college (bachelor\'s) degree.'}
+                                                            {edu.hasBachelors && degFields.length > 0 && (
+                                                                <> Workers typically study <strong>{listFormatter.format(degFields)}</strong>.</>
+                                                            )}
+                                                        </li>
+                                                    );
+                                                })}
+                                            </ul>
+                                        </>
+                                    );
+                                })()}
                             </div>
                         </div>
                     )}
@@ -1637,18 +1697,20 @@ function AlphabeticalVisualization() {
             {!showTop && !ranked && !showSearch && showEnd && (
                 <>
                     <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                        gap: '15px',
-                        marginBottom: '30px'
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        minHeight: '300px',
                     }}>
                         <div style={{
                             backgroundColor: 'white',
-                            padding: '15px',
+                            padding: '30px 40px',
                             borderRadius: '8px',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                            maxWidth: '600px',
+                            textAlign: 'center'
                         }}>
-                            <p>Thank you for completing this portion of the survey. Please click &gt; at the bottom right of the page to continue the survey. You may need to scroll all the way to the bottom of the survey screen to see it.</p>
+                            <p style={{ fontSize: '16px', lineHeight: '1.6' }}>Thank you for completing this portion of the survey. Please click the <strong>&rarr;</strong> button at the bottom right of the page to continue the survey. You may need to scroll down to see it.</p>
                         </div>
                     </div>
                 </>

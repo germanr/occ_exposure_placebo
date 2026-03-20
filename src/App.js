@@ -2,7 +2,7 @@
    Deployed to: https://germanr.github.io/occ_exposure_placebo/
 */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 // CSV URL - same data file as treatment version
 const CSV_URL = process.env.PUBLIC_URL + '/aei_exposure_6digit.csv';
@@ -387,6 +387,13 @@ function AlphabeticalVisualization() {
     const [searchScreenTimeStart, setSearchScreenTimeStart] = useState(null);
     const [searchScreenTotalTime, setSearchScreenTotalTime] = useState(0);
 
+    // Comprehensive event-level tracking for page 4
+    const searchScreenEvents = useRef([]);
+    const searchScreenStartTime = useRef(null);
+    const detailOpenTimeRef = useRef(null);
+    const searchDebounceRef = useRef(null);
+    const maxScrollRef = useRef(0);
+
     // Alphabetical tier filter buttons for page 4
     const [alphaFilters, setAlphaFilters] = useState(new Set());
     // Occupation group filter (2-digit SOC)
@@ -424,7 +431,7 @@ function AlphabeticalVisualization() {
 
                 // Parse CSV
                 const lines = text.trim().split('\n');
-                const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
 
                 const rankingIndex = headers.indexOf('ranking');
                 const occupationIndex = headers.indexOf('occupation');
@@ -436,6 +443,7 @@ function AlphabeticalVisualization() {
                 const relatedSoc1Index = headers.indexOf('related_soc_code_1');
                 const relatedSoc2Index = headers.indexOf('related_soc_code_2');
                 const relatedSoc3Index = headers.indexOf('related_soc_code_3');
+                const altTitlesIndex = headers.indexOf('alt_titles');
 
                 if (rankingIndex === -1 || occupationIndex === -1) {
                     throw new Error('CSV must have "ranking" and "occupation" columns');
@@ -474,6 +482,10 @@ function AlphabeticalVisualization() {
                     const related_soc_code_2 = relatedSoc2Index !== -1 ? (values[relatedSoc2Index]?.trim().replace(/^"|"$/g, '') || '') : '';
                     const related_soc_code_3 = relatedSoc3Index !== -1 ? (values[relatedSoc3Index]?.trim().replace(/^"|"$/g, '') || '') : '';
 
+                    // Parse alt_titles (pipe-delimited string)
+                    const altTitlesRaw = altTitlesIndex !== -1 ? (values[altTitlesIndex]?.trim().replace(/^"|"$/g, '') || '') : '';
+                    const alt_titles = altTitlesRaw ? altTitlesRaw.split(' | ').map(t => t.trim()).filter(Boolean) : [];
+
                     if (occupation && !isNaN(ranking)) {
                         const occObj = {
                             id: i - 1,
@@ -487,6 +499,7 @@ function AlphabeticalVisualization() {
                             related_soc_code_1: related_soc_code_1,
                             related_soc_code_2: related_soc_code_2,
                             related_soc_code_3: related_soc_code_3,
+                            alt_titles: alt_titles,
                         };
                         data[occupation.toLowerCase()] = ranking;
                         occList.push(occObj);
@@ -550,10 +563,31 @@ function AlphabeticalVisualization() {
 
     // Function to get search screen tracking data (can be called from parent via postMessage)
     const getSearchScreenTrackingData = () => {
+        const occMap = {};
+        searchScreenEvents.current.forEach(evt => {
+            if (evt.type === 'click_occupation') {
+                if (!occMap[evt.occupation]) {
+                    occMap[evt.occupation] = { name: evt.occupation, soc_code: evt.soc_code, viewCount: 0, totalViewSeconds: 0 };
+                }
+                occMap[evt.occupation].viewCount++;
+            } else if (evt.type === 'close_occupation' && evt.viewDurationSeconds != null && occMap[evt.occupation]) {
+                occMap[evt.occupation].totalViewSeconds += evt.viewDurationSeconds;
+            }
+        });
+
+        const totalTimeSeconds = searchScreenStartTime.current
+            ? parseFloat(((Date.now() - searchScreenStartTime.current) / 1000).toFixed(1))
+            : searchScreenTotalTime;
+
         return {
-            totalTimeSeconds: searchScreenTotalTime,
+            totalTimeSeconds,
             occupationsViewed: searchScreenOccupationsViewed,
-            searchTermsUsed: searchTerms
+            searchTermsUsed: searchTerms,
+            events: searchScreenEvents.current,
+            occupationsViewedDetailed: Object.values(occMap),
+            searchTerms: searchScreenEvents.current.filter(e => e.type === 'search').map(e => e.term),
+            filtersUsed: searchScreenEvents.current.filter(e => e.type.startsWith('filter_')),
+            maxScrollPercent: maxScrollRef.current
         };
     };
 
@@ -571,26 +605,68 @@ function AlphabeticalVisualization() {
         return () => window.removeEventListener('message', handleMessage);
     }, [searchScreenTotalTime, searchScreenOccupationsViewed, searchTerms]);
 
+    // Log an event for the search screen (page 4)
+    const logSearchEvent = (eventType, details) => {
+        if (!searchScreenStartTime.current) return;
+        searchScreenEvents.current.push({
+            type: eventType,
+            time: parseFloat(((Date.now() - searchScreenStartTime.current) / 1000).toFixed(1)),
+            ...details
+        });
+    };
+
+    // Debounced search input handler for page 4
+    const handleSearchInputChange = (e) => {
+        const value = e.target.value;
+        setSearchTerm(value);
+        clearTimeout(searchDebounceRef.current);
+        if (value.trim()) {
+            searchDebounceRef.current = setTimeout(() => {
+                const lv = value.toLowerCase();
+                const resultCount = occupationList.filter(item =>
+                    item.name.toLowerCase().includes(lv) ||
+                    (item.alt_titles && item.alt_titles.some(alt => alt.toLowerCase().includes(lv)))
+                ).length;
+                logSearchEvent('search', { term: value.trim(), resultCount });
+            }, 500);
+        }
+    };
+
     // Filter toggle handler for page 4
     const handleFilterToggle = (label) => {
         setAlphaFilters(prev => {
             const next = new Set(prev);
             if (next.has(label)) {
                 next.delete(label);
+                logSearchEvent('filter_off', { filter: label });
             } else {
                 next.add(label);
+                logSearchEvent('filter_on', { filter: label });
             }
             return next;
         });
+    };
+
+    // Scroll tracking for page 4 occupation list
+    const handleSearchListScroll = (e) => {
+        const { scrollTop, scrollHeight, clientHeight } = e.target;
+        if (scrollHeight - clientHeight > 0) {
+            const pct = Math.round((scrollTop / (scrollHeight - clientHeight)) * 100);
+            if (pct > maxScrollRef.current) maxScrollRef.current = pct;
+        }
     };
 
     // Filter and sort data
     // Use occupations from CSV file
     let data = [...occupationList];
 
-    // Apply search filter
+    // Apply search filter (matches against main name and alt titles)
     if (searchTerm) {
-        data = data.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+        const term = searchTerm.toLowerCase();
+        data = data.filter(item =>
+            item.name.toLowerCase().includes(term) ||
+            (item.alt_titles && item.alt_titles.some(alt => alt.toLowerCase().includes(term)))
+        );
     }
 
     // Apply filters (only active on page 4: !showSearch && !ranked && !showTop)
@@ -666,6 +742,14 @@ function AlphabeticalVisualization() {
     const handleItemClickEnd = (item) => {
         if (selectedItemEnd) {
             updateTimeSpentDetail(selectedItemEnd.id, timeSpent - timeSpentDetailStart);
+            // Log close event with duration
+            if (detailOpenTimeRef.current) {
+                logSearchEvent('close_occupation', {
+                    occupation: selectedItemEnd.name,
+                    viewDurationSeconds: parseFloat(((Date.now() - detailOpenTimeRef.current) / 1000).toFixed(1))
+                });
+                detailOpenTimeRef.current = null;
+            }
         }
         if ((selectedItemEnd && selectedItemEnd !== item) || !selectedItemEnd) {
             item.count++;
@@ -677,8 +761,18 @@ function AlphabeticalVisualization() {
                 setSearchTerms(searchTerms + ', ' + searchTerm);
             }
         }
-        setSelectedItemEnd(selectedItemEnd?.name === item.name ? null : item);
+        const isClosing = selectedItemEnd?.name === item.name;
+        setSelectedItemEnd(isClosing ? null : item);
         setTimeSpentDetailStart(timeSpent);
+
+        if (!isClosing) {
+            // Log click event for opening a new occupation
+            logSearchEvent('click_occupation', {
+                occupation: item.name,
+                soc_code: item.soc_code
+            });
+            detailOpenTimeRef.current = Date.now();
+        }
 
         // Track occupation viewed on search screen (only add if not already tracked)
         if (!searchScreenOccupationsViewed.find(o => o.name === item.name)) {
@@ -733,7 +827,10 @@ function AlphabeticalVisualization() {
     // Handles user clicking continue on the transition screen
     const handleTransitionContinue = () => {
         setShowTransition(false);
+        searchScreenStartTime.current = Date.now();
         setSearchScreenTimeStart(Date.now());
+        searchScreenEvents.current = [];
+        maxScrollRef.current = 0;
         setAlphaFilters(new Set());
         setOccGroupFilter('');
         setEducationFilter('');
@@ -766,12 +863,57 @@ function AlphabeticalVisualization() {
         setShowEnd(true);
         if (selectedItemEnd) {
             updateTimeSpentDetail(selectedItemEnd.id, timeSpent - timeSpentDetailStart);
+            // Close any open detail panel and log duration
+            if (detailOpenTimeRef.current) {
+                logSearchEvent('close_occupation', {
+                    occupation: selectedItemEnd.name,
+                    viewDurationSeconds: parseFloat(((Date.now() - detailOpenTimeRef.current) / 1000).toFixed(1))
+                });
+                detailOpenTimeRef.current = null;
+            }
         }
         setSelectedItemEnd(null);
         updateTimeSpentPages(3, timeSpent);
-        // Start tracking time for search screen
-        setSearchScreenTimeStart(Date.now());
         setTimeSpent(0);
+
+        // Compute total time on search screen
+        const totalTimeSeconds = searchScreenStartTime.current
+            ? parseFloat(((Date.now() - searchScreenStartTime.current) / 1000).toFixed(1))
+            : 0;
+
+        // Log max scroll
+        logSearchEvent('end', { maxScrollPercent: maxScrollRef.current });
+
+        // Build deduplicated occupationsViewed with view counts and durations from events
+        const occMap = {};
+        const openTimes = {};
+        searchScreenEvents.current.forEach(evt => {
+            if (evt.type === 'click_occupation') {
+                if (!occMap[evt.occupation]) {
+                    occMap[evt.occupation] = { name: evt.occupation, soc_code: evt.soc_code, viewCount: 0, totalViewSeconds: 0 };
+                }
+                occMap[evt.occupation].viewCount++;
+                openTimes[evt.occupation] = evt.time;
+            } else if (evt.type === 'close_occupation' && evt.viewDurationSeconds != null) {
+                if (occMap[evt.occupation]) {
+                    occMap[evt.occupation].totalViewSeconds += evt.viewDurationSeconds;
+                }
+            }
+        });
+
+        // Send comprehensive tracking data
+        window.parent.postMessage({
+            type: 'searchScreenTracking',
+            data: {
+                events: searchScreenEvents.current,
+                totalTimeSeconds,
+                occupationsViewed: Object.values(occMap),
+                searchTerms: searchScreenEvents.current.filter(e => e.type === 'search').map(e => e.term),
+                filtersUsed: searchScreenEvents.current.filter(e => e.type.startsWith('filter_')),
+                maxScrollPercent: maxScrollRef.current
+            }
+        }, '*');
+
         window.parent.postMessage("showNextButton", "*");
     };
 
@@ -895,7 +1037,13 @@ function AlphabeticalVisualization() {
                             height: '250px',
                             overflowY: 'scroll'
                         }}>
-                            {data.map((item, index) => (
+                            {data.map((item, index) => {
+                                const term = searchTerm?.toLowerCase() || '';
+                                const nameMatches = item.name.toLowerCase().includes(term);
+                                const matchingAlt = !nameMatches && term && item.alt_titles
+                                    ? item.alt_titles.find(alt => alt.toLowerCase().includes(term))
+                                    : null;
+                                return (
                                 <div
                                     key={index}
                                     onClick={() => handleItemClick(item)}
@@ -911,9 +1059,17 @@ function AlphabeticalVisualization() {
                                         backgroundColor: 'transparent'
                                     }}
                                 >
-                                    {item.name}
+                                    <span>
+                                        {item.name}
+                                        {matchingAlt && (
+                                            <span style={{ color: '#6b7280', fontSize: '0.85em', marginLeft: '6px' }}>
+                                                (also known as: {matchingAlt})
+                                            </span>
+                                        )}
+                                    </span>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                     <div style={{
@@ -1549,7 +1705,7 @@ function AlphabeticalVisualization() {
                             <input
                                 type="text"
                                 placeholder='Search for occupations'
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={handleSearchInputChange}
                                 style={{
                                     width: '100%',
                                     padding: '10px 10px 10px 35px',
@@ -1570,11 +1726,20 @@ function AlphabeticalVisualization() {
                                 🔍
                             </div>
                         </div>
-                        <div style={{
-                            height: '250px',
-                            overflowY: 'scroll'
-                        }}>
-                            {data.map((item, index) => (
+                        <div
+                            style={{
+                                height: '250px',
+                                overflowY: 'scroll'
+                            }}
+                            onScroll={handleSearchListScroll}
+                        >
+                            {data.map((item, index) => {
+                                const term = searchTerm?.toLowerCase() || '';
+                                const nameMatches = item.name.toLowerCase().includes(term);
+                                const matchingAlt = !nameMatches && term && item.alt_titles
+                                    ? item.alt_titles.find(alt => alt.toLowerCase().includes(term))
+                                    : null;
+                                return (
                                 <div
                                     key={index}
                                     onClick={() => handleItemClickEnd(item)}
@@ -1590,9 +1755,17 @@ function AlphabeticalVisualization() {
                                         backgroundColor: 'transparent'
                                     }}
                                 >
-                                    {item.name}
+                                    <span>
+                                        {item.name}
+                                        {matchingAlt && (
+                                            <span style={{ color: '#6b7280', fontSize: '0.85em', marginLeft: '6px' }}>
+                                                (also known as: {matchingAlt})
+                                            </span>
+                                        )}
+                                    </span>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
 

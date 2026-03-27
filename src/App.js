@@ -1003,7 +1003,7 @@ function AlphabeticalVisualization() {
                     marginBottom: '30px',
                     color: 'black'
                 }}>
-                    Click on an occupation for detailed information.
+                    Click on an occupation for detailed information. Scroll down to view the detailed information.
                 </p>
             )}
 
@@ -1196,7 +1196,7 @@ function AlphabeticalVisualization() {
 
                             {/* List of occupations with click-to-expand details */}
                             <p style={{ marginBottom: '15px', color: 'black', fontWeight: '500' }}>
-                                Click on an occupation below for more details:
+                                Click on an occupation below for more details. Scroll down to view the detailed information.
                             </p>
                             <div>
                                 {ranked.map((item, index) => {

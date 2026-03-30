@@ -62,10 +62,10 @@ function getAlphabeticalGroup(name) {
     return { group: ALPHA_TIERS[idx].displayLabel, color: ALPHA_TIERS[idx].color };
 }
 
-// Get button background color based on alphabetical tier (blue shades)
+// Get button background color based on alphabetical tier (light tints of tier colors)
 function getButtonColor(name) {
     const idx = getAlphaTierIndex(name);
-    const colors = ['#dbeafe', '#dbeafe', '#e0e7ff', '#e0f2fe'];
+    const colors = ['#cedcf6', '#d4e0f9', '#dce7fb', '#e4eefd'];
     return colors[idx];
 }
 
